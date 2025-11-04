@@ -21,7 +21,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const menuItems = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Medicamentos', href: '/medicamentos', icon: Package },
     { name: 'Clientes', href: '/clientes', icon: Users },
     { name: 'Ventas', href: '/ventas', icon: ShoppingCart },
@@ -99,7 +99,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 p-8 md:p-12">
+        <main className="flex-1">
           {children}
         </main>
       </div>
