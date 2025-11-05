@@ -8,30 +8,30 @@ export default function DashboardHome() {
   const stats = [
     {
       title: "Total Medicamentos",
-      value: "1,234",
+      value: "0",
       icon: Package,
-      description: "+12% desde el mes pasado",
+      description: "0% desde el mes pasado",
       color: "text-blue-600",
     },
     {
       title: "Ventas del Día",
-      value: "Bs. 8,450",
+      value: "Bs. 0",
       icon: DollarSign,
-      description: "23 transacciones hoy",
+      description: "0 transacciones hoy",
       color: "text-green-600",
     },
     {
       title: "Clientes Registrados",
-      value: "856",
+      value: "0",
       icon: Users,
-      description: "+8 nuevos esta semana",
+      description: "+0 nuevos esta semana",
       color: "text-purple-600",
     },
     {
       title: "Alertas Activas",
-      value: "15",
+      value: "0",
       icon: AlertTriangle,
-      description: "8 por vencer, 7 stock bajo",
+      description: "0 por vencer, 0 stock bajo",
       color: "text-red-600",
     },
   ]
