@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/component/ui
 import { Button } from "@/component/ui/button"
 import { Input } from "@/component/ui/input"
 import { Label } from "@/component/ui/label"
-import { Textarea } from "@/component/ui/textarea"
 import { supabase } from "@/lib/supabase"
 
 

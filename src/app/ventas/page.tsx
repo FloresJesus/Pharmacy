@@ -8,9 +8,10 @@ import { Button } from "@/component/ui/button"
 import { Card, CardContent, CardHeader } from "@/component/ui/card"
 import { Input } from "@/component/ui/input"
 import { supabase } from "@/lib/supabase"
+import VentaDialog from "@/component/venta/ventaDialog" // <-- asegúrate de la ruta
 
 //
-// Tipos para respuestas de Supabase
+// Tipos
 //
 interface VentaRow {
   id: number
@@ -18,7 +19,6 @@ interface VentaRow {
   monto_total: number
   estado: string
   cliente_id: number | null
-  // join con clientes: puede venir como objeto o null
   clientes: { id: number; nombre: string; apellido: string } | null
 }
 
@@ -29,8 +29,6 @@ interface ItemRowFromDB {
   cantidad: number
   precio_por_unidad: number
   subtotal: number
-  // cuando usas `medicamentos:medicamento_id (codigo,nombre)` PostgREST devuelve
-  // un array (posiblemente []) dentro de la propiedad `medicamentos`
   medicamentos: { codigo: string; nombre: string }[] | null
 }
 
@@ -59,12 +57,15 @@ export default function VentasPage() {
   const [loadingList, setLoadingList] = useState(false)
   const [loadingDeleteId, setLoadingDeleteId] = useState<number | null>(null)
 
+  // dialog states
+  const [ventaDialogOpen, setVentaDialogOpen] = useState(false)
+  const [editingVentaId, setEditingVentaId] = useState<number | null>(null)
+
   const formatBs = (value: number) => `Bs. ${value.toFixed(2)}`
 
   const fetchVentas = useCallback(async () => {
     setLoadingList(true)
     try {
-      // 1) traer ventas con info cliente (join)
       const resp = await supabase
         .from("ventas")
         .select(
@@ -84,7 +85,6 @@ export default function VentasPage() {
       const rows = (resp.data ?? []) as unknown as VentaRow[]
       const ventaIds = rows.map((r) => r.id)
 
-      // 2) obtener items para las ventas en una sola consulta
       const itemsBySale: Record<number, VentaItem[]> = {}
 
       if (ventaIds.length > 0) {
@@ -105,10 +105,9 @@ export default function VentasPage() {
 
         if (itResp.error) throw itResp.error
 
-        const itRows = (itResp.data ?? []) as ItemRowFromDB[]
+        const itRows = (itResp.data ?? []) as unknown as ItemRowFromDB[]
 
         for (const it of itRows) {
-          // aseguramos el array y tomamos el primer elemento si existe
           const med = Array.isArray(it.medicamentos) ? it.medicamentos[0] ?? null : it.medicamentos
           const label = med ? `${med.codigo} - ${med.nombre}` : `#${it.medicamento_id}`
 
@@ -124,7 +123,6 @@ export default function VentasPage() {
         }
       }
 
-      // 3) mapear ventas con items agrupados
       const mapped: VentaWithItems[] = rows.map((r) => ({
         id: r.id,
         fecha_venta: r.fecha_venta,
@@ -148,6 +146,18 @@ export default function VentasPage() {
     fetchVentas()
   }, [fetchVentas])
 
+  // abrir dialog nuevo
+  const handleNew = () => {
+    setEditingVentaId(null)
+    setVentaDialogOpen(true)
+  }
+
+  // abrir dialog edición
+  const handleEdit = (ventaId: number) => {
+    setEditingVentaId(ventaId)
+    setVentaDialogOpen(true)
+  }
+
   const handleDelete = async (ventaId: number) => {
     if (!confirm("¿Eliminar esta venta? Esta acción no se puede deshacer.")) return
     setLoadingDeleteId(ventaId)
@@ -164,26 +174,21 @@ export default function VentasPage() {
     }
   }
 
-  const handleEdit = (ventaId: number) => {
-    // callback placeholder — integra aquí el dialog cuando lo tengas
-    alert(`Editar venta V-${String(ventaId).padStart(3, "0")} (diálogo pendiente)`)
-  }
-
-  const filteredVentas = useMemo(() => {
+  const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase()
     if (!q) return ventas
     return ventas.filter(
       (v) =>
         v.id.toString().includes(q) ||
         v.clienteNombre.toLowerCase().includes(q) ||
-        v.items.some((i) => i.medicamentoLabel.toLowerCase().includes(q))
+        (v.fecha_venta ?? "").toLowerCase().includes(q) ||
+        v.items.some(it => it.medicamentoLabel.toLowerCase().includes(q))
     )
   }, [ventas, searchTerm])
 
   return (
     <Sidebar>
       <Header />
-
       <div className="space-y-4 sm:space-y-6 p-2 sm:p-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
           <div>
@@ -192,10 +197,7 @@ export default function VentasPage() {
           </div>
 
           <div className="w-full sm:w-auto flex justify-end">
-            <Button
-              onClick={() => alert("Abrir diálogo 'Nueva venta' (pendiente)")}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
-            >
+            <Button onClick={handleNew} className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Nueva venta</span>
               <span className="sm:hidden">Nueva</span>
@@ -203,7 +205,7 @@ export default function VentasPage() {
           </div>
         </div>
 
-        {/* Buscador igual al panel de clientes */}
+        {/* Buscador como en clientes */}
         <Card className="w-full">
           <CardHeader>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full">
@@ -223,14 +225,13 @@ export default function VentasPage() {
             <div className="rounded-lg border border-border/50 overflow-hidden p-4 space-y-6">
               {loadingList ? (
                 <div className="text-center text-muted-foreground py-8">Cargando ventas...</div>
-              ) : filteredVentas.length === 0 ? (
+              ) : filtered.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
                   {ventas.length === 0 ? "No hay ventas registradas." : "No se encontraron resultados."}
                 </div>
               ) : (
-                filteredVentas.map((v) => (
+                filtered.map((v) => (
                   <article key={v.id} className="border rounded p-4">
-                    {/* Encabezado */}
                     <div className="border p-3 rounded mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                       <div>
                         <div className="text-sm text-muted-foreground">V-{String(v.id).padStart(3, "0")}</div>
@@ -242,33 +243,28 @@ export default function VentasPage() {
                       </div>
                     </div>
 
-                    {/* Cliente */}
                     <div className="border p-3 rounded mb-4 flex items-center justify-between">
                       <div className="text-sm text-muted-foreground">Cliente:</div>
                       <div className="font-medium">{v.clienteNombre}</div>
                     </div>
 
-                    {/* Productos */}
                     <div>
                       <h3 className="text-lg font-semibold mb-2">Productos:</h3>
                       <div className="space-y-2">
                         {v.items.length === 0 ? (
                           <div className="text-sm text-muted-foreground">No hay productos registrados para esta venta.</div>
-                        ) : (
-                          v.items.map((it) => (
-                            <div key={it.id} className="border p-3 rounded flex items-center justify-between">
-                              <div className="font-medium flex-1">{it.medicamentoLabel}</div>
-                              <div className="flex items-center gap-8 text-sm text-muted-foreground whitespace-nowrap">
-                                <span>Cantidad: <span className="font-medium ml-1">{it.cantidad}</span></span>
-                                <span>Precio: <span className="font-medium ml-1">{formatBs(it.precio_por_unidad)}</span></span>
-                              </div>
+                        ) : v.items.map(it => (
+                          <div key={it.id} className="border p-3 rounded flex items-center justify-between">
+                            <div className="font-medium flex-1">{it.medicamentoLabel}</div>
+                            <div className="flex items-center gap-8 text-sm text-muted-foreground whitespace-nowrap">
+                              <span>Cantidad: <span className="font-medium ml-1">{it.cantidad}</span></span>
+                              <span>Precio: <span className="font-medium ml-1">{formatBs(it.precio_por_unidad)}</span></span>
                             </div>
-                          ))
-                        )}
+                          </div>
+                        ))}
                       </div>
                     </div>
 
-                    {/* Acciones */}
                     <div className="mt-4 flex justify-end gap-2">
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(v.id)} className="inline-flex items-center gap-2">
                         <Edit3 className="h-4 w-4" /> <span className="hidden sm:inline">Editar</span>
@@ -284,6 +280,27 @@ export default function VentasPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* VentaDialog integrado */}
+      <VentaDialog
+        open={ventaDialogOpen}
+        onOpenChange={(open) => {
+          setVentaDialogOpen(open)
+          if (!open) {
+            // limpiar edición cuando se cierre
+            setEditingVentaId(null)
+            // refrescar lista al cerrar (en caso de que haya cambios)
+            fetchVentas()
+          }
+        }}
+        ventaId={editingVentaId}
+        onSaved={() => {
+          // refrescar y cerrar
+          fetchVentas()
+          setVentaDialogOpen(false)
+          setEditingVentaId(null)
+        }}
+      />
     </Sidebar>
   )
 }
