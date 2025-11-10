@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import Sidebar from "@/component/sidebar"
 import Header from "@/component/header"
-import { Plus, Search, Edit3, Trash2, DollarSign } from "lucide-react"
+import { Plus, Search, Edit3, Trash2, Printer } from "lucide-react"
 import { Button } from "@/component/ui/button"
 import { Card, CardContent, CardHeader } from "@/component/ui/card"
 import { Input } from "@/component/ui/input"
@@ -294,7 +294,7 @@ export default function VentasPage() {
                       </Button>
 
                       <Button variant="ghost" size="sm" onClick={() => requestComprobante(v.id)} className="inline-flex items-center gap-2" disabled={generatingId === v.id}>
-                        {generatingId === v.id ? "Generando..." : (<><DollarSign className="h-4 w-4" /> <span className="hidden sm:inline">Comprobante</span></>)}
+                        {generatingId === v.id ? "Generando..." : (<><Printer className="h-4 w-4" /> <span className="hidden sm:inline">Comprobante</span></>)}
                       </Button>
 
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(v.id)} className="inline-flex items-center gap-2 text-red-600" disabled={loadingDeleteId === v.id}>
