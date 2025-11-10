@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import Sidebar from "@/component/sidebar"
 import Header from "@/component/header"
-import { Plus, Search, Edit3, Trash2 } from "lucide-react"
+import { Plus, Search, Edit3, Trash2, DollarSign } from "lucide-react"
 import { Button } from "@/component/ui/button"
 import { Card, CardContent, CardHeader } from "@/component/ui/card"
 import { Input } from "@/component/ui/input"
@@ -56,10 +56,9 @@ export default function VentasPage() {
   const [ventas, setVentas] = useState<VentaWithItems[]>([])
   const [loadingList, setLoadingList] = useState(false)
   const [loadingDeleteId, setLoadingDeleteId] = useState<number | null>(null)
-
-  // dialog states
   const [ventaDialogOpen, setVentaDialogOpen] = useState(false)
   const [editingVentaId, setEditingVentaId] = useState<number | null>(null)
+  const [generatingId, setGeneratingId] = useState<number | null>(null)
 
   const formatBs = (value: number) => `Bs. ${value.toFixed(2)}`
 
@@ -186,6 +185,30 @@ export default function VentasPage() {
     )
   }, [ventas, searchTerm])
 
+  // Generar comprobante
+  const requestComprobante = async (ventaId: number) => {
+    try {
+      setGeneratingId(ventaId)
+      const resp = await fetch("/api/comprobantes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ventaId, tipo: "FACTURA", serie: "F001" }),
+      })
+      const data = await resp.json()
+      if (!data.ok) {
+        alert("Error al generar comprobante: " + (data.error ?? "desconocido"))
+        return
+      }
+      if (data.signedUrl) window.open(data.signedUrl, "_blank")
+      else alert("Comprobante generado en: " + (data.storagePath ?? "ruta desconocida"))
+    } catch (err) {
+      console.error("Error requestComprobante:", err)
+      alert("Error generando comprobante (ver consola).")
+    } finally {
+      setGeneratingId(null)
+    }
+  }
+
   return (
     <Sidebar>
       <Header />
@@ -269,6 +292,11 @@ export default function VentasPage() {
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(v.id)} className="inline-flex items-center gap-2">
                         <Edit3 className="h-4 w-4" /> <span className="hidden sm:inline">Editar</span>
                       </Button>
+
+                      <Button variant="ghost" size="sm" onClick={() => requestComprobante(v.id)} className="inline-flex items-center gap-2" disabled={generatingId === v.id}>
+                        {generatingId === v.id ? "Generando..." : (<><DollarSign className="h-4 w-4" /> <span className="hidden sm:inline">Comprobante</span></>)}
+                      </Button>
+
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(v.id)} className="inline-flex items-center gap-2 text-red-600" disabled={loadingDeleteId === v.id}>
                         <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">{loadingDeleteId === v.id ? "Eliminando..." : "Eliminar"}</span>
                       </Button>
