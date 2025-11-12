@@ -46,6 +46,7 @@ export default function MedicamentosPage() {
   const fetchMedicamentos = useCallback(async () => {
     setLoadingList(true)
     try {
+      // obtener datos desde supabase de la tabla medicamentos
       const { data, error } = await supabase
         .from("medicamentos")
         .select("*")
@@ -84,10 +85,9 @@ export default function MedicamentosPage() {
     fetchMedicamentos()
   }, [fetchMedicamentos])
 
-  // cuando se cierra el dialog (después de add/edit), refrescamos la lista
+  // cuando se cierra el dialog 
   useEffect(() => {
     if (!dialogOpen) {
-      // pequeño delay opcional para esperar a que el server procese (no imprescindible)
       fetchMedicamentos()
     }
   }, [dialogOpen, fetchMedicamentos])
@@ -145,7 +145,7 @@ export default function MedicamentosPage() {
 
   // helper para formatear precio en Bs.
   const formatBs = (value: number) => {
-    // Simple y fiable: "Bs. 123.45"
+    // Ejemplo: "Bs. 123.45"
     return `Bs. ${value.toFixed(2)}`
   }
 

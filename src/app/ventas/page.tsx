@@ -10,9 +10,6 @@ import { Input } from "@/component/ui/input"
 import { supabase } from "@/lib/supabase"
 import VentaDialog from "@/component/venta/ventaDialog" // <-- asegúrate de la ruta
 
-//
-// Tipos
-//
 interface VentaRow {
   id: number
   fecha_venta: string
@@ -65,6 +62,7 @@ export default function VentasPage() {
   const fetchVentas = useCallback(async () => {
     setLoadingList(true)
     try {
+      // obtener ventas desde supabase
       const resp = await supabase
         .from("ventas")
         .select(
@@ -87,6 +85,7 @@ export default function VentasPage() {
       const itemsBySale: Record<number, VentaItem[]> = {}
 
       if (ventaIds.length > 0) {
+        // obtener items de venta relacionados
         const itResp = await supabase
           .from("items_venta")
           .select(

@@ -31,6 +31,7 @@ export default function ClientesPage() {
   const fetchClientes = useCallback(async () => {
     setLoadingList(true)
     try {
+      // obtener clientes desde supabase
       const { data, error } = await supabase
         .from("clientes")
         .select("*")
@@ -74,6 +75,7 @@ export default function ClientesPage() {
     if (!c.id) return
     setLoadingDeleteId(c.id)
     try {
+      // eliminar cliente en supabase
       const resp = await supabase
         .from("clientes")
         .delete()

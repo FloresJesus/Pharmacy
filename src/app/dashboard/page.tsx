@@ -52,7 +52,7 @@ export default function DashboardHome() {
       expiryDate.setDate(expiryDate.getDate() + EXPIRY_DAYS)
       const expiryIso = expiryDate.toISOString()
 
-      // 1️⃣ Medicamentos
+      // Medicamentos
       const medsCountResp = await supabase
         .from("medicamentos")
         .select("id", { count: "exact", head: true })
@@ -60,7 +60,7 @@ export default function DashboardHome() {
       if (medsCountResp.error) throw medsCountResp.error
       setTotalMedicamentos(medsCountResp.count ?? 0)
 
-      // 2️⃣ Ventas del día
+      // Ventas del día
       const ventasResp = await supabase
         .from("ventas")
         .select("monto_total, fecha_venta")
@@ -72,7 +72,7 @@ export default function DashboardHome() {
       const ventasSum = ventasRows.reduce((sum, v) => sum + Number(v.monto_total || 0), 0)
       setVentasHoy(ventasSum)
 
-      // 3️⃣ Clientes
+      // Clientes
       const clientesResp = await supabase
         .from("clientes")
         .select("id", { count: "exact", head: true })
@@ -80,7 +80,7 @@ export default function DashboardHome() {
       if (clientesResp.error) throw clientesResp.error
       setTotalClientes(clientesResp.count ?? 0)
 
-      // 4️⃣ Alertas (vencimientos + stock bajo)
+      // Alertas (vencimientos + stock bajo)
       const vencResp = await supabase
         .from("medicamentos")
         .select("id, fecha_vencimiento, stock")
@@ -89,7 +89,7 @@ export default function DashboardHome() {
 
       if (vencResp.error) throw vencResp.error
       const vencRows = (vencResp.data ?? []) as Medicamento[]
-
+      // Stock bajo
       const stockResp = await supabase
         .from("medicamentos")
         .select("id, stock")

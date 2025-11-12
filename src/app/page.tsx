@@ -1,13 +1,5 @@
-import React from 'react';
-import Sidebar from '@/component/sidebar';
-import Header from '@/component/header';
+import { redirect } from 'next/navigation';
 
 export default function Home() {
-  return (
-    <div>
-      <Sidebar>
-        <Header />
-      </Sidebar>
-    </div>
-  );
+  redirect('/dashboard');
 }
