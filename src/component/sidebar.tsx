@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
   LayoutDashboard,
@@ -15,10 +15,12 @@ import {
   LogOut
 } from "lucide-react";
 import Image from 'next/image';
+import { supabase } from '@/lib/supabase';
 
 export default function Sidebar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const router = useRouter();
 
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -46,7 +48,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         >
           <div className="flex flex-col h-full">
             <div className="flex items-center justify-center p-6 border-b border-gray-200">
-              <Link href="/">
+              <Link href="/dashboard">
                 <Image src="/images/logo.png" alt="Logo" width={150} height={50} priority />
               </Link>
             </div>
@@ -79,8 +81,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
             <div className="p-4 border-t border-gray-200">
               <button
                 className="flex items-center gap-3 w-full px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg"
-                onClick={() => {
-                  // Handle logout logic here
+                onClick={async () => {
+                  await supabase.auth.signOut()
+                  localStorage.clear()
+                  router.replace("/login")
                 }}
               >
                 <LogOut className="h-5 w-5" />
