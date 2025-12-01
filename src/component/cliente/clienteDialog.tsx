@@ -7,7 +7,6 @@ import { Input } from "@/component/ui/input"
 import { Label } from "@/component/ui/label"
 import { supabase } from "@/lib/supabase"
 
-
 export interface Cliente {
   id?: number | null
   ci: string
@@ -42,10 +41,18 @@ const INITIAL_FORM: FormData = {
   direccion: "",
 }
 
+type FormErrors = Partial<Record<keyof FormData, string>>
+
 export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProps) {
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM)
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<FormErrors>({})
   const firstRef = useRef<HTMLInputElement | null>(null)
+  const apellidoRef = useRef<HTMLInputElement | null>(null)
+  const ciRef = useRef<HTMLInputElement | null>(null)
+  const telefonoRef = useRef<HTMLInputElement | null>(null)
+  const emailRef = useRef<HTMLInputElement | null>(null)
+  const direccionRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (cliente) {
@@ -60,33 +67,120 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
     } else {
       setFormData(INITIAL_FORM)
     }
+    setErrors({})
   }, [cliente, open])
 
   useEffect(() => {
     if (!open) {
       setFormData(INITIAL_FORM)
       setLoading(false)
+      setErrors({})
     }
   }, [open])
 
-  const validate = (d: FormData) => {
-    if (!d.ci.trim()) return "C.I. es obligatorio."
-    if (!d.nombre.trim()) return "Nombre es obligatorio."
-    if (!d.apellido.trim()) return "Apellido es obligatorio."
-    if (!d.telefono.trim()) return "Teléfono es obligatorio."
-    if (!d.email.trim()) return "Email es obligatorio."
-    if (!d.direccion.trim()) return "Dirección es obligatorio."
-    return null
+  // --- reglas y/o validaciones REGEX ---
+  const CI_REGEX = /^\d{6,12}$/ // sólo dígitos, 6-12 caracteres (ajusta si necesitas otro rango)
+  const NAME_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,}$/
+  const PHONE_DIGITS_REGEX = /[0-9]/g
+  const PHONE_REGEX = /^[+]?[\d\s\-()]{8}$/
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  // validar un solo campo (útil onBlur)
+  const validateField = (key: keyof FormData, value: string): string | null => {
+    switch (key) {
+      case "ci":
+        if (!value.trim()) return "C.I. es obligatorio."
+        if (!CI_REGEX.test(value.trim())) return "C.I. inválida. Debe contener sólo dígitos (6 a 12)."
+        return null
+      case "nombre":
+        if (!value.trim()) return "Nombre es obligatorio."
+        if (!NAME_REGEX.test(value.trim())) return "Nombre inválido. Usa sólo letras y espacios (mín. 2 caracteres)."
+        return null
+      case "apellido":
+        if (!value.trim()) return "Apellido es obligatorio."
+        if (!NAME_REGEX.test(value.trim())) return "Apellido inválido. Usa sólo letras y espacios (mín. 2 caracteres)."
+        return null
+      case "telefono":
+        if (!value.trim()) return "Teléfono es obligatorio."
+        // contar dígitos reales para asegurar longitud mínima razonable
+        const digits = (value.match(PHONE_DIGITS_REGEX) || []).length
+        if (digits < 8) return "Teléfono inválido. Debe tener al menos 8 dígitos."
+        if (!PHONE_REGEX.test(value.trim())) return "Formato de teléfono inválido."
+        return null
+      case "email":
+        if (!value.trim()) return "Email es obligatorio."
+        if (!EMAIL_REGEX.test(value.trim())) return "Email inválido."
+        return null
+      case "direccion":
+        if (!value.trim()) return "Dirección es obligatorio."
+        if (value.trim().length < 3) return "Dirección demasiado corta."
+        return null
+      default:
+        return null
+    }
+  }
+
+  // validar todo el formulario
+  const validateAll = (data: FormData): FormErrors => {
+    const nextErrors: FormErrors = {}
+
+    // Object.keys devuelve string[], por eso hacemos el cast a Array<keyof FormData>
+    for (const k of Object.keys(data) as Array<keyof FormData>) {
+      const value = data[k] // TypeScript sabe que value es string
+      const err = validateField(k, value)
+      if (err) {
+        nextErrors[k] = err
+      }
+    }
+
+    return nextErrors
+  }
+
+  // handler onBlur para validación campo a campo
+  const handleBlur = (key: keyof FormData) => {
+    const err = validateField(key, formData[key])
+    setErrors(prev => ({ ...prev, [key]: err ?? undefined }))
+  }
+
+  const focusFirstError = (errs: FormErrors) => {
+    if (errs.nombre) {
+      firstRef.current?.focus()
+      return
+    }
+    if (errs.apellido) {
+      apellidoRef.current?.focus()
+      return
+    }
+    if (errs.ci) {
+      ciRef.current?.focus()
+      return
+    }
+    if (errs.telefono) {
+      telefonoRef.current?.focus()
+      return
+    }
+    if (errs.email) {
+      emailRef.current?.focus()
+      return
+    }
+    if (errs.direccion) {
+      direccionRef.current?.focus()
+      return
+    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (loading) return
-    const err = validate(formData)
-    if (err) {
-      alert(err)
+
+    // validar
+    const nextErrors = validateAll(formData)
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) {
+      focusFirstError(nextErrors)
       return
     }
+
     setLoading(true)
     const payload = {
       ci: formData.ci.trim(),
@@ -118,6 +212,7 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
       }
       onOpenChange(false)
       setFormData(INITIAL_FORM)
+      setErrors({})
     } catch (err) {
       if (err instanceof Error) {
         console.error("Error cliente:", err.message)
@@ -141,79 +236,111 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="codigo" className="block text-sm font-medium text-gray-700">Nombre *</Label>
+              <Label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre *</Label>
               <Input
                 type="text"
                 id="nombre"
                 ref={firstRef}
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="w-full"
+                onBlur={() => handleBlur("nombre")}
+                className={`w-full ${errors.nombre ? "border-red-500" : ""}`}
+                aria-invalid={!!errors.nombre}
+                aria-describedby={errors.nombre ? "err-nombre" : undefined}
                 required
               />
+              {errors.nombre && <p id="err-nombre" className="text-red-600 text-sm mt-1">{errors.nombre}</p>}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Apellido *</Label>
+              <Label htmlFor="apellido" className="block text-sm font-medium text-gray-700">Apellido *</Label>
               <Input
                 type="text"
                 id="apellido"
+                ref={apellidoRef}
                 value={formData.apellido}
                 onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
-                className="w-full"
+                onBlur={() => handleBlur("apellido")}
+                className={`w-full ${errors.apellido ? "border-red-500" : ""}`}
+                aria-invalid={!!errors.apellido}
+                aria-describedby={errors.apellido ? "err-apellido" : undefined}
                 required
               />
+              {errors.apellido && <p id="err-apellido" className="text-red-600 text-sm mt-1">{errors.apellido}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="fechaVencimiento" className="block text-sm font-medium text-gray-700">C.I. *</Label>
+              <Label htmlFor="ci" className="block text-sm font-medium text-gray-700">C.I. *</Label>
               <Input
                 type="text"
                 id="ci"
+                ref={ciRef}
                 value={formData.ci}
                 onChange={(e) => setFormData({ ...formData, ci: e.target.value })}
-                className="w-full"
+                onBlur={() => handleBlur("ci")}
+                className={`w-full ${errors.ci ? "border-red-500" : ""}`}
+                aria-invalid={!!errors.ci}
+                aria-describedby={errors.ci ? "err-ci" : undefined}
                 required
               />
+              {errors.ci && <p id="err-ci" className="text-red-600 text-sm mt-1">{errors.ci}</p>}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="cantidad" className="block text-sm font-medium text-gray-700">Telefono *</Label>
+              <Label htmlFor="telefono" className="block text-sm font-medium text-gray-700">Teléfono *</Label>
               <Input
                 type="text"
                 id="telefono"
+                ref={telefonoRef}
                 value={formData.telefono}
                 onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                className="w-full"
+                onBlur={() => handleBlur("telefono")}
+                className={`w-full ${errors.telefono ? "border-red-500" : ""}`}
+                aria-invalid={!!errors.telefono}
+                aria-describedby={errors.telefono ? "err-telefono" : undefined}
                 required
               />
+              {errors.telefono && <p id="err-telefono" className="text-red-600 text-sm mt-1">{errors.telefono}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="precioCompra" className="block text-sm font-medium text-gray-700">Email *</Label>
+              <Label htmlFor="email" className="block text-sm font-medium text-gray-700">Email *</Label>
               <Input
                 type="email"
                 id="email"
+                ref={emailRef}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full"
+                onBlur={() => handleBlur("email")}
+                className={`w-full ${errors.email ? "border-red-500" : ""}`}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "err-email" : undefined}
                 required
               />
+              {errors.email && <p id="err-email" className="text-red-600 text-sm mt-1">{errors.email}</p>}
             </div>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
             <div className="space-y-2">
               <Label htmlFor="direccion" className="block text-sm font-medium text-gray-700">Dirección *</Label>
               <Input
                 type="text"
                 id="direccion"
+                ref={direccionRef}
                 value={formData.direccion}
                 onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-                className="w-full"
+                onBlur={() => handleBlur("direccion")}
+                className={`w-full ${errors.direccion ? "border-red-500" : ""}`}
+                aria-invalid={!!errors.direccion}
+                aria-describedby={errors.direccion ? "err-direccion" : undefined}
                 required
               />
+              {errors.direccion && <p id="err-direccion" className="text-red-600 text-sm mt-1">{errors.direccion}</p>}
             </div>
           </div>
 
@@ -223,6 +350,7 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
               onClick={() => {
                 onOpenChange(false)
                 setFormData(INITIAL_FORM)
+                setErrors({})
               }}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               disabled={loading}

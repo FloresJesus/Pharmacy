@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/component/ui/dialog"
 import { Button } from "@/component/ui/button"
 import { Input } from "@/component/ui/input"
@@ -51,14 +51,23 @@ const INITIAL_FORM: FormData = {
   estado: "disponible",
 }
 
-export function MedicamentoDialog({ open, onOpenChange, medicamento}: MedicamentoDialogProps) {
+type FormErrors = Partial<Record<keyof FormData, string>>
 
-  
+export function MedicamentoDialog({ open, onOpenChange, medicamento }: MedicamentoDialogProps) {
+
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM)
   const [loading, setLoading] = useState(false)
-  const firstInputRef = useRef<HTMLInputElement | null>(null)
+  const [errors, setErrors] = useState<FormErrors>({})
 
-  
+  // refs para foco en primer error
+  const codigoRef = useRef<HTMLInputElement | null>(null)
+  const nombreRef = useRef<HTMLInputElement | null>(null)
+  const fechaRef = useRef<HTMLInputElement | null>(null)
+  const cantidadRef = useRef<HTMLInputElement | null>(null)
+  const precioCompraRef = useRef<HTMLInputElement | null>(null)
+  const precioVentaRef = useRef<HTMLInputElement | null>(null)
+
+  // cargar datos en formulario
   useEffect(() => {
     if (medicamento) {
       setFormData({
@@ -66,66 +75,223 @@ export function MedicamentoDialog({ open, onOpenChange, medicamento}: Medicament
         nombre: medicamento.nombre ?? "",
         descripcion: medicamento.descripcion ?? "",
         fechaVencimiento: medicamento.fechaVencimiento ?? "",
-        cantidad: typeof medicamento.cantidad === "number" ? medicamento.cantidad : (medicamento.cantidad ?? 0),
-        precioCompra: typeof medicamento.precioCompra === "number" ? medicamento.precioCompra : (medicamento.precioCompra ?? 0),
-        precioVenta: typeof medicamento.precioVenta === "number" ? medicamento.precioVenta : (medicamento.precioVenta ?? 0),
+        cantidad: medicamento.cantidad ?? 0,
+        precioCompra: medicamento.precioCompra ?? 0,
+        precioVenta: medicamento.precioVenta ?? 0,
         estado: medicamento.estado ?? "disponible",
       })
     } else {
       setFormData(INITIAL_FORM)
     }
+    setErrors({})
   }, [medicamento, open])
 
-  // Reset cuando se cierra
+  // reset al cerrar
   useEffect(() => {
     if (!open) {
       setFormData(INITIAL_FORM)
       setLoading(false)
+      setErrors({})
     }
   }, [open])
 
-  const validate = useCallback((data: FormData) => {
-    if (!data.codigo.trim()) return "El campo código es obligatorio."
-    if (!data.nombre.trim()) return "El campo nombre es obligatorio."
-    if (!data.fechaVencimiento) return "La fecha de vencimiento es obligatoria."
-    const cantidadNum = Number(data.cantidad)
-    const precioC = Number(data.precioCompra)
-    const precioV = Number(data.precioVenta)
-    if (Number.isNaN(cantidadNum) || cantidadNum < 0) return "Cantidad inválida."
-    if (Number.isNaN(precioC) || precioC < 0) return "Precio de compra inválido."
-    if (Number.isNaN(precioV) || precioV < 0) return "Precio de venta inválido."
-    return null
-  }, [])
+  // obtener auth UID
+  const getAuthUid = async () => {
+    const { data } = await supabase.auth.getSession()
+    return data.session?.user?.id ?? null
+  }
 
+  // obtener ID de usuario local
+  const getUsuarioId = async () => {
+    const authUid = await getAuthUid()
+    if (!authUid) return null
+
+    const { data, error } = await supabase
+      .from("usuarios")
+      .select("id")
+      .eq("auth_uid", authUid)
+      .maybeSingle()
+
+    if (error) {
+      console.error("Error buscando usuario local:", error)
+      return null
+    }
+
+    return data?.id ?? null
+  }
+
+  // registrar entrada
+  const registrarEntrada = async (
+    medicamento_id: number,
+    usuario_id: number | null,
+    cantidad: number,
+    precio_unitario: number,
+    observaciones: string
+  ) => {
+    const created_by = await getAuthUid()
+
+    await supabase.from("entradas_inventario").insert({
+      medicamento_id,
+      usuario_id,
+      cantidad,
+      precio_unitario,
+      fecha_entrada: new Date().toISOString(),
+      observaciones,
+      created_by
+    })
+  }
+
+  // registrar salida
+  const registrarSalida = async (
+    medicamento_id: number,
+    usuario_id: number | null,
+    cantidad: number,
+    motivo: string
+  ) => {
+    const created_by = await getAuthUid()
+
+    await supabase.from("salidas_inventario").insert({
+      medicamento_id,
+      usuario_id,
+      cantidad,
+      fecha_salida: new Date().toISOString(),
+      motivo,
+      created_by
+    })
+  }
+
+  // --- VALIDACIONES ---
+  const CODE_REGEX = /^[A-Z]{2}-\d{3}$/
+  const NAME_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,}$/ // letras, espacios, - y '
+  const isValidDate = (d: string) => {
+    if (!d) return false
+    const t = Date.parse(d)
+    return !Number.isNaN(t)
+  }
+  const todayIsOrBefore = (d: string) => {
+    // compara fecha (sin tiempo)
+    const given = new Date(d)
+    given.setHours(0,0,0,0)
+    const today = new Date()
+    today.setHours(0,0,0,0)
+    return given >= today
+  }
+
+  const validateField = (key: keyof FormData, value: FormData[keyof FormData]): string | null => {
+    switch (key) {
+      case "codigo": {
+        const v = String(value ?? "").trim()
+        if (!v) return "Código obligatorio."
+        if (!CODE_REGEX.test(v)) return "Código inválido. Formato AA-000 (dos mayúsculas, guion y 3 números)."
+        return null
+      }
+      case "nombre": {
+        const v = String(value ?? "").trim()
+        if (!v) return "Nombre obligatorio."
+        if (!NAME_REGEX.test(v)) return "Nombre inválido (mín. 2 caracteres, solo letras y espacios)."
+        return null
+      }
+      case "fechaVencimiento": {
+        const v = String(value ?? "").trim()
+        if (!v) return "Fecha de vencimiento obligatoria."
+        if (!isValidDate(v)) return "Fecha inválida."
+        if (!todayIsOrBefore(v)) return "La fecha no puede ser anterior a hoy."
+        return null
+      }
+      case "cantidad": {
+        const v = value === "" ? "" : Number(value)
+        if (v === "") return "Cantidad obligatoria."
+        if (!Number.isFinite(Number(v)) || Number(v) < 0) return "Cantidad inválida (>= 0)."
+        if (!Number.isInteger(Number(v))) return "Cantidad debe ser un número entero."
+        return null
+      }
+      case "precioCompra": {
+        const v = value === "" ? "" : Number(value)
+        if (v === "") return "Precio de compra obligatorio."
+        if (!Number.isFinite(Number(v)) || Number(v) < 0) return "Precio de compra inválido (>= 0)."
+        return null
+      }
+      case "precioVenta": {
+        const v = value === "" ? "" : Number(value)
+        if (v === "") return "Precio de venta obligatorio."
+        if (!Number.isFinite(Number(v)) || Number(v) < 0) return "Precio de venta inválido (>= 0)."
+        // validar relación con precioCompra si ambos están presentes
+        const pc = formData.precioCompra === "" ? null : Number(formData.precioCompra)
+        if (pc !== null && Number(v) < pc) return "Precio de venta no puede ser menor que precio de compra."
+        return null
+      }
+      case "descripcion":
+      case "estado":
+        return null
+      default:
+        return null
+    }
+  }
+
+  // validar todo el formulario (evita problemas de types usando Array<keyof FormData>)
+  const validateAll = (data: FormData): FormErrors => {
+    const nextErrors: FormErrors = {}
+    for (const k of Object.keys(data) as Array<keyof FormData>) {
+      const err = validateField(k, data[k])
+      if (err) nextErrors[k] = err
+    }
+    return nextErrors
+  }
+
+  const focusFirstError = (errs: FormErrors) => {
+    if (errs.codigo) { codigoRef.current?.focus(); return }
+    if (errs.nombre) { nombreRef.current?.focus(); return }
+    if (errs.fechaVencimiento) { fechaRef.current?.focus(); return }
+    if (errs.cantidad) { cantidadRef.current?.focus(); return }
+    if (errs.precioCompra) { precioCompraRef.current?.focus(); return }
+    if (errs.precioVenta) { precioVentaRef.current?.focus(); return }
+  }
+
+  const handleBlur = (k: keyof FormData) => {
+    const err = validateField(k, formData[k])
+    setErrors(prev => ({ ...prev, [k]: err ?? undefined }))
+  }
+
+  // SUBMIT
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (loading) return
-    const err = validate(formData)
-    if (err) {
-      alert(err)
+
+    const nextErrors = validateAll(formData)
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) {
+      focusFirstError(nextErrors)
       return
     }
 
     setLoading(true)
 
-    // Payload mapeado a columnas reales de la tabla `medicamentos`
     const payload = {
-      codigo: formData.codigo.trim(),
-      nombre: formData.nombre.trim(),
-      descripcion: formData.descripcion?.trim() ?? null,
-      fecha_vencimiento: formData.fechaVencimiento,
+      codigo: String(formData.codigo).trim(),
+      nombre: String(formData.nombre).trim(),
+      descripcion: formData.descripcion || null,
+      fecha_vencimiento: String(formData.fechaVencimiento),
       stock: Number(formData.cantidad),
-      // stock_minimo se deja al default de la DB
       precio_compra: Number(formData.precioCompra),
       precio_venta: Number(formData.precioVenta),
-      estado: formData.estado === "disponible" ? "Disponible" : "No Disponible",
+      estado: formData.estado === "disponible" ? "Disponible" : "No Disponible"
     }
 
     try {
-      console.debug("Payload a enviar:", payload)
+      const usuarioId = await getUsuarioId()
 
       if (medicamento && medicamento.id) {
-        // UPDATE
+        // EDITAR — obtener stock actual
+        const { data: actual } = await supabase
+          .from("medicamentos")
+          .select("stock")
+          .eq("id", medicamento.id)
+          .maybeSingle()
+
+        const stockAntiguo = actual?.stock ?? 0
+        const stockNuevo = payload.stock
+
+        // actualizar medicamento
         const resp = await supabase
           .from("medicamentos")
           .update(payload)
@@ -133,46 +299,63 @@ export function MedicamentoDialog({ open, onOpenChange, medicamento}: Medicament
           .select()
           .maybeSingle()
 
-        console.debug("Respuesta update:", resp)
+        if (resp.error) throw resp.error
 
-        if (resp.error) {
-          throw new Error(resp.error.message ?? JSON.stringify(resp.error))
-        }
-        if (!resp.data) {
-          throw new Error("La actualización no afectó ninguna fila.")
+        // registrar entrada o salida
+        if (stockNuevo > stockAntiguo) {
+          await registrarEntrada(
+            medicamento.id,
+            usuarioId,
+            stockNuevo - stockAntiguo,
+            payload.precio_compra,
+            "Ajuste por actualización"
+          )
         }
 
-        alert("Medicamento actualizado correctamente.")
+        if (stockNuevo < stockAntiguo) {
+          await registrarSalida(
+            medicamento.id,
+            usuarioId,
+            stockAntiguo - stockNuevo,
+            "Vencido o ajuste por actualización"
+          )
+        }
+
+        alert("Medicamento actualizado")
+
       } else {
-        // INSERT
+        // CREAR
         const resp = await supabase
           .from("medicamentos")
           .insert(payload)
           .select()
           .maybeSingle()
 
-        console.debug("Respuesta insert:", resp)
+        if (resp.error) throw resp.error
 
-        if (resp.error) {
-          throw new Error(resp.error.message ?? JSON.stringify(resp.error))
-        }
-        if (!resp.data) {
-          throw new Error("La inserción no devolvió datos. Revisa la consola/network para detalles.")
+        const nuevoId = resp.data.id
+
+        // registrar entrada inicial
+        if (payload.stock > 0) {
+          await registrarEntrada(
+            nuevoId,
+            usuarioId,
+            payload.stock,
+            payload.precio_compra,
+            "Ingreso inicial"
+          )
         }
 
-        alert("Medicamento creado correctamente.")
+        alert("Medicamento creado")
       }
 
       onOpenChange(false)
       setFormData(INITIAL_FORM)
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        console.error("Error:", err.message, err)
-        alert(err.message)
-      } else {
-        console.error("Error desconocido:", err)
-        alert(`Ocurrió un error al guardar (ver consola). Detalle: ${String(err)}`)
-      }
+      setErrors({})
+
+    } catch (error) {
+      console.error(error)
+      alert("Error inesperado, revisa consola")
     } finally {
       setLoading(false)
     }
@@ -182,106 +365,133 @@ export function MedicamentoDialog({ open, onOpenChange, medicamento}: Medicament
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-2xl h-[80vh] overflow-y-auto p-6 bg-white rounded-lg shadow-xl">
         <DialogHeader className="mb-6">
-          <DialogTitle className="text-xl font-semibold text-gray-900">{medicamento ? "Editar Medicamento" : "Nuevo Medicamento"}</DialogTitle>
+          <DialogTitle>{medicamento ? "Editar Medicamento" : "Nuevo Medicamento"}</DialogTitle>
         </DialogHeader>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
+
+          {/* código y nombre */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="codigo" className="block text-sm font-medium text-gray-700">Código *</Label>
+            <div>
+              <Label>Código *</Label>
               <Input
-                id="codigo"
-                ref={firstInputRef}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                ref={codigoRef}
                 value={formData.codigo}
                 onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                onBlur={() => handleBlur("codigo")}
+                aria-invalid={!!errors.codigo}
+                aria-describedby={errors.codigo ? "err-codigo" : undefined}
                 required
+                className={`${errors.codigo ? "border-red-500" : ""}`}
               />
+              {errors.codigo && <p id="err-codigo" className="text-red-600 text-sm mt-1">{errors.codigo}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre *</Label>
+            <div>
+              <Label>Nombre *</Label>
               <Input
-                id="nombre"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                ref={nombreRef}
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                onBlur={() => handleBlur("nombre")}
+                aria-invalid={!!errors.nombre}
+                aria-describedby={errors.nombre ? "err-nombre" : undefined}
                 required
+                className={`${errors.nombre ? "border-red-500" : ""}`}
               />
+              {errors.nombre && <p id="err-nombre" className="text-red-600 text-sm mt-1">{errors.nombre}</p>}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="descripcion" className="block text-sm font-medium text-gray-700">Descripción</Label>
+          {/* descripción */}
+          <div>
+            <Label>Descripción</Label>
             <Textarea
-              id="descripcion"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={formData.descripcion}
               onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-              rows={3}
             />
           </div>
 
+          {/* fecha + cantidad */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="fechaVencimiento" className="block text-sm font-medium text-gray-700">Fecha de Vencimiento *</Label>
+            <div>
+              <Label>Fecha de Vencimiento *</Label>
               <Input
-                id="fechaVencimiento"
+                ref={fechaRef}
                 type="date"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={formData.fechaVencimiento}
                 onChange={(e) => setFormData({ ...formData, fechaVencimiento: e.target.value })}
+                onBlur={() => handleBlur("fechaVencimiento")}
+                aria-invalid={!!errors.fechaVencimiento}
+                aria-describedby={errors.fechaVencimiento ? "err-fecha" : undefined}
                 required
+                className={`${errors.fechaVencimiento ? "border-red-500" : ""}`}
               />
+              {errors.fechaVencimiento && <p id="err-fecha" className="text-red-600 text-sm mt-1">{errors.fechaVencimiento}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="cantidad" className="block text-sm font-medium text-gray-700">Cantidad *</Label>
+
+            <div>
+              <Label>Cantidad *</Label>
               <Input
-                id="cantidad"
+                ref={cantidadRef}
                 type="number"
                 min={0}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={formData.cantidad === "" ? "" : String(formData.cantidad)}
-                onChange={(e) => {
-                  const val = e.target.value
-                  setFormData({ ...formData, cantidad: val === "" ? "" : Number(val) })
-                }}
+                onChange={(e) => setFormData({ ...formData, cantidad: e.target.value === "" ? "" : Number(e.target.value) })}
+                onBlur={() => handleBlur("cantidad")}
+                aria-invalid={!!errors.cantidad}
+                aria-describedby={errors.cantidad ? "err-cantidad" : undefined}
                 required
+                className={`${errors.cantidad ? "border-red-500" : ""}`}
               />
+              {errors.cantidad && <p id="err-cantidad" className="text-red-600 text-sm mt-1">{errors.cantidad}</p>}
             </div>
           </div>
 
+          {/* precios */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="precioCompra" className="block text-sm font-medium text-gray-700">Precio Compra (Bs.) *</Label>
+            <div>
+              <Label>Precio Compra *</Label>
               <Input
-                id="precioCompra"
+                ref={precioCompraRef}
                 type="number"
                 step="0.01"
                 min={0}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={formData.precioCompra === "" ? "" : String(formData.precioCompra)}
                 onChange={(e) => setFormData({ ...formData, precioCompra: e.target.value === "" ? "" : Number(e.target.value) })}
+                onBlur={() => handleBlur("precioCompra")}
+                aria-invalid={!!errors.precioCompra}
+                aria-describedby={errors.precioCompra ? "err-precioc" : undefined}
                 required
+                className={`${errors.precioCompra ? "border-red-500" : ""}`}
               />
+              {errors.precioCompra && <p id="err-precioc" className="text-red-600 text-sm mt-1">{errors.precioCompra}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="precioVenta" className="block text-sm font-medium text-gray-700">Precio Venta (Bs.) *</Label>
+
+            <div>
+              <Label>Precio Venta *</Label>
               <Input
-                id="precioVenta"
+                ref={precioVentaRef}
                 type="number"
                 step="0.01"
                 min={0}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={formData.precioVenta === "" ? "" : String(formData.precioVenta)}
                 onChange={(e) => setFormData({ ...formData, precioVenta: e.target.value === "" ? "" : Number(e.target.value) })}
+                onBlur={() => handleBlur("precioVenta")}
+                aria-invalid={!!errors.precioVenta}
+                aria-describedby={errors.precioVenta ? "err-preciov" : undefined}
                 required
+                className={`${errors.precioVenta ? "border-red-500" : ""}`}
               />
+              {errors.precioVenta && <p id="err-preciov" className="text-red-600 text-sm mt-1">{errors.precioVenta}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="estado" className="block text-sm font-medium text-gray-700">Estado *</Label>
+
+            <div>
+              <Label>Estado *</Label>
               <Select
                 value={formData.estado}
-                onValueChange={(value) => setFormData({ ...formData, estado: value as "disponible" | "no-disponible" })}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, estado: value as "disponible" | "no-disponible" })
+                }
               >
                 <SelectTrigger id="estado" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                   <SelectValue />
@@ -294,25 +504,21 @@ export function MedicamentoDialog({ open, onOpenChange, medicamento}: Medicament
             </div>
           </div>
 
-          <div className="flex justify-end gap-4 pt-6">
-            <Button
-              type="button"
-              onClick={() => {
-                onOpenChange(false)
-                setFormData(INITIAL_FORM)
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              disabled={loading}
-            >
+          {/* botones */}
+          <div className="flex justify-end gap-4">
+            <Button type="button" variant="outline" onClick={() => {
+              onOpenChange(false)
+              setFormData(INITIAL_FORM)
+              setErrors({})
+            }} disabled={loading}>
               Cancelar
             </Button>
-
             <Button
               type="submit"
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               disabled={loading}
             >
-              {loading ? (medicamento ? "Actualizando..." : "Guardando...") : (medicamento ? "Actualizar" : "Guardar")}
+              {loading ? "Guardando..." : medicamento ? "Actualizar" : "Guardar"}
             </Button>
           </div>
         </form>
