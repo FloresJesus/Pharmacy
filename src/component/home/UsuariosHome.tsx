@@ -53,7 +53,7 @@ export default function UsuariosHome() {
         setChecking(false)
       }
     })
-
+    
     return () => {
       mounted = false
       try {
@@ -71,7 +71,7 @@ export default function UsuariosHome() {
       if (!session?.user) return
       const uid = session.user.id
       try {
-        const { data: pByUid } = await supabase.from("usuarios").select("*").eq("created_by", uid).limit(1).maybeSingle()
+        const { data: pByUid } = await supabase.from("usuarios").select("*").eq("auth_uid", uid).limit(1).maybeSingle()
         if (pByUid) {
           setPerfilActual(pByUid as UsuarioDB)
           return
@@ -224,11 +224,11 @@ export default function UsuariosHome() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
           <div className="w-full sm:w-auto">
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Usuarios</h1>
-            <p className="text-sm sm:text-base text-muted-foreground mt-1">Administración de usuarios</p>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">Administración de usuarios</p>            
           </div>
 
           <div className="w-full sm:w-auto flex justify-end">
-            <Button onClick={handleAdd} className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 sm:px-4 sm:py-2">
+            <Button onClick={handleAdd} className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 sm:px-4 sm:py-2">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Nuevo Usuario</span>
               <span className="sm:hidden">Nuevo</span>
@@ -238,10 +238,15 @@ export default function UsuariosHome() {
 
         <Card className="w-full">
           <CardHeader>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
               <div className="relative flex-1 w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Buscar por usuario, nombre o email..." className="pl-10 w-full" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <Input
+                  placeholder="Buscar por usuario, nombre o email..."
+                  className="pl-10 w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
             </div>
           </CardHeader>
@@ -249,14 +254,15 @@ export default function UsuariosHome() {
           <CardContent>
             <div className="rounded-lg border border-border/50 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full sm:min-w-[640px]">
+                {/* TABLE: visible en pantallas sm+ */}
+                <table className="w-full sm:table hidden">
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">#</th>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Usuario</th>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Nombre</th>
-                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Email</th>
-                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Rol</th>
+                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Email</th>
+                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rol</th>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Activo</th>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
                     </tr>
@@ -275,8 +281,8 @@ export default function UsuariosHome() {
                           <td className="p-2 sm:p-4 text-xs sm:text-sm">{u.id}</td>
                           <td className="p-2 sm:p-4 text-xs sm:text-sm">{u.nombre_usuario}</td>
                           <td className="p-2 sm:p-4 text-xs sm:text-sm">{u.nombre_completo}</td>
-                          <td className="p-2 sm:p-4 text-xs sm:text-sm">{u.email}</td>
-                          <td className="p-2 sm:p-4 text-xs sm:text-sm">{u.rol}</td>
+                          <td className="p-2 sm:p-4 text-xs sm:text-sm hidden md:table-cell">{u.email}</td>
+                          <td className="p-2 sm:p-4 text-xs sm:text-sm hidden sm:table-cell">{u.rol}</td>
                           <td className="p-2 sm:p-4 text-xs sm:text-sm">
                             <button onClick={() => toggleActivo(u)} className={`px-2 py-1 text-sm rounded ${u.activo ? "bg-green-100" : "bg-red-100"}`}>
                               {u.activo ? "Sí" : "No"}
@@ -300,6 +306,48 @@ export default function UsuariosHome() {
                     )}
                   </tbody>
                 </table>
+
+                {/* MOBILE: lista de tarjetas - visible en xs, oculta en sm+ */}
+                <div className="sm:hidden">
+                  {filteredUsuarios.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      {loadingList ? "Cargando..." : usuarios.length === 0 ? "No hay usuarios. Agrega uno nuevo." : "No se encontraron resultados."}
+                    </div>
+                  ) : (
+                    <div className="space-y-3 p-2">
+                      {filteredUsuarios.map((u) => (
+                        <div key={u.id} className="border rounded-lg p-3 shadow-sm bg-background">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium text-sm truncate">{u.nombre_usuario}</div>
+                                <div className="text-xs text-muted-foreground">#{u.id}</div>
+                              </div>
+                              <div className="text-sm text-muted-foreground truncate">{u.nombre_completo}</div>
+                              <div className="text-xs text-muted-foreground mt-1 truncate">{u.email}</div>
+                              <div className="text-xs text-muted-foreground mt-1">Rol: <span className="font-medium">{u.rol}</span></div>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-2">
+                              <button onClick={() => toggleActivo(u)} className={`px-2 py-1 text-xs rounded ${u.activo ? "bg-green-100" : "bg-red-100"}`}>
+                                {u.activo ? "Sí" : "No"}
+                              </button>
+
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => handleEdit(u)} className="p-1" aria-label={`Editar ${u.nombre_usuario}`}>
+                                  <Edit3 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDelete(u)} className="p-1 text-red-600" aria-label={`Eliminar ${u.nombre_usuario}`} disabled={!isAdmin || loadingDeleteId === u.id}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>

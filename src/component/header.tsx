@@ -41,7 +41,7 @@ export default function Header() {
 
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b bg-white shadow-sm relative">
-      <h1 className="text-lg font-semibold text-gray-800">Sistema Farmacéutico</h1>
+      <h1 className="text-lg font-semibold text-gray-800 text-center">Bienvenido al Sistema Farmacéutico</h1>
 
       {/* User Section */}
       <div className="relative">

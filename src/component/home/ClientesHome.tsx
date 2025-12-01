@@ -29,7 +29,7 @@ export default function ClientesHome() {
   const [loadingList, setLoadingList] = useState(false)
   const [loadingDeleteId, setLoadingDeleteId] = useState<number | null>(null)
 
-//retricciones de usuario
+  // restricciones de usuario
   const router = useRouter()
   const [checking, setChecking] = useState(true)
 
@@ -58,18 +58,18 @@ export default function ClientesHome() {
       try { listener.subscription.unsubscribe(); } catch {}
     };
   }, [router]);
-  //fin de restricciones
+  // fin de restricciones
 
   const fetchClientes = useCallback(async () => {
     setLoadingList(true)
     try {
-      // obtener clientes desde supabase
       const { data, error } = await supabase
         .from("clientes")
         .select("*")
         .order("id", { ascending: true })
       if (error) {
         console.error("Error cargar clientes:", error)
+        setClientes([])
         return
       }
       if (!data) {
@@ -107,7 +107,6 @@ export default function ClientesHome() {
     if (!c.id) return
     setLoadingDeleteId(c.id)
     try {
-      // eliminar cliente en supabase
       const resp = await supabase
         .from("clientes")
         .delete()
@@ -132,7 +131,12 @@ export default function ClientesHome() {
   const filteredClientes = useMemo(() => {
     const q = searchTerm.trim().toLowerCase()
     if (!q) return clientes
-    return clientes.filter(c => c.nombre.toLowerCase().includes(q) || c.ci.toLowerCase().includes(q) || c.apellido.toLowerCase().includes(q))
+    return clientes.filter(c =>
+      c.nombre.toLowerCase().includes(q) ||
+      c.ci.toLowerCase().includes(q) ||
+      c.apellido.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q)
+    )
   }, [clientes, searchTerm])
 
   if (checking) return <div className="p-6">Comprobando sesión...</div>;
@@ -150,7 +154,7 @@ export default function ClientesHome() {
           <div className="w-full sm:w-auto flex justify-end">
             <Button
               onClick={handleAdd}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 sm:px-4 sm:py-2"
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 sm:px-4 sm:py-2"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Nuevo Cliente</span>
@@ -161,11 +165,11 @@ export default function ClientesHome() {
 
         <Card className="w-full">
           <CardHeader>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
               <div className="relative flex-1 w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por nombre o código..."
+                  placeholder="Buscar por nombre, CI, apellido o email..."
                   className="pl-10 w-full"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -173,21 +177,24 @@ export default function ClientesHome() {
               </div>
             </div>
           </CardHeader>
+
           <CardContent>
             <div className="rounded-lg border border-border/50 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full sm:min-w-[640px]">
+                {/* TABLE: visible en pantallas sm+ */}
+                <table className="w-full hidden sm:table sm:min-w-[640px]">
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">C.I.</th>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Nombre</th>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Apellido</th>
-                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Teléfono</th>
-                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Email</th>
-                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Dirección</th>
+                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Teléfono</th>
+                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Email</th>
+                      <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Dirección</th>
                       <th className="p-2 sm:p-4 text-left text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {filteredClientes.length === 0 ? (
                       <tr>
@@ -201,11 +208,11 @@ export default function ClientesHome() {
                           <td className="p-2 sm:p-4 text-xs sm:text-sm">{med.ci}</td>
                           <td className="p-2 sm:p-4 text-xs sm:text-sm">{med.nombre}</td>
                           <td className="p-2 sm:p-4 text-xs sm:text-sm">{med.apellido}</td>
-                          <td className="p-2 sm:p-4 text-xs sm:text-sm">{med.telefono}</td>
-                          <td className="p-2 sm:p-4 text-xs sm:text-sm">{med.email}</td>
-                          <td className="p-2 sm:p-4 text-xs sm:text-sm">{med.direccion}</td>
+                          <td className="p-2 sm:p-4 text-xs sm:text-sm hidden md:table-cell">{med.telefono}</td>
+                          <td className="p-2 sm:p-4 text-xs sm:text-sm hidden lg:table-cell">{med.email}</td>
+                          <td className="p-2 sm:p-4 text-xs sm:text-sm hidden lg:table-cell">{med.direccion}</td>
                           <td className="p-2 sm:p-4 text-xs sm:text-sm">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 justify-end">
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -237,11 +244,51 @@ export default function ClientesHome() {
                     )}
                   </tbody>
                 </table>
+
+                {/* MOBILE: lista de tarjetas - visible en xs, oculta en sm+ */}
+                <div className="sm:hidden">
+                  {filteredClientes.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      {loadingList ? "Cargando..." : (clientes.length === 0 ? "No hay clientes. Agrega uno nuevo." : "No se encontraron resultados.")}
+                    </div>
+                  ) : (
+                    <div className="space-y-3 p-2">
+                      {filteredClientes.map((med) => (
+                        <div key={med.id} className="border rounded-lg p-3 shadow-sm bg-background">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium text-sm truncate">{med.nombre} {med.apellido}</div>
+                                <div className="text-xs text-muted-foreground">CI: {med.ci}</div>
+                              </div>
+                              <div className="text-sm text-muted-foreground truncate">{med.telefono}</div>
+                              <div className="text-xs text-muted-foreground mt-1 truncate">{med.email}</div>
+                              <div className="text-xs text-muted-foreground mt-1 truncate">{med.direccion}</div>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-2">
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => handleEdit(med)} className="p-1" aria-label={`Editar ${med.nombre}`}>
+                                  <Edit3 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDelete(med)} className="p-1 text-red-600" aria-label={`Eliminar ${med.nombre}`} disabled={loadingDeleteId === med.id}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
       <ClienteDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
