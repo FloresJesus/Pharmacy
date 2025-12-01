@@ -86,7 +86,7 @@ async function isRequesterAdmin(uid: string | null): Promise<boolean> {
     console.warn("isRequesterAdmin lookup error:", error);
     return false;
   }
-  const rol = (data as any)?.rol ?? null;
+  const rol = (data)?.rol ?? null;
   return rol === "admin" || rol === "administrador";
 }
 
@@ -176,7 +176,7 @@ export async function POST(request: Request) {
     }
 
     const inserted = resp.data as Record<string, unknown>;
-    if ("password_hash" in inserted) delete (inserted as any).password_hash;
+    if ("password_hash" in inserted) delete (inserted).password_hash;
 
     return NextResponse.json({ data: inserted }, { status: 201 });
   } catch (err: unknown) {
@@ -233,7 +233,7 @@ export async function PUT(request: Request) {
     }
 
     const updated = resp.data as Record<string, unknown>;
-    if ("password_hash" in updated) delete (updated as any).password_hash;
+    if ("password_hash" in updated) delete (updated).password_hash;
     return NextResponse.json({ data: updated }, { status: 200 });
   } catch (err: unknown) {
     console.error("PUT /api/usuarios error:", err);
