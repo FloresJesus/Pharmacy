@@ -8,7 +8,7 @@ import { Button } from "@/component/ui/button"
 import { Card, CardContent, CardHeader } from "@/component/ui/card"
 import { Input } from "@/component/ui/input"
 import { supabase } from "@/lib/supabase"
-import VentaDialog from "@/component/venta/ventaDialog" // <-- asegúrate de la ruta
+import VentaDialog from "@/component/venta/ventaDialog"
 
 interface VentaRow {
   id: number

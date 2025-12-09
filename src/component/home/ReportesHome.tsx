@@ -49,7 +49,7 @@ export default function ReportesHome() {
   // restricción usuario / auth
   const router = useRouter()
   const [checking, setChecking] = useState(true)
-
+  
   useEffect(() => {
     let mounted = true
 

@@ -124,9 +124,9 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
   const validateAll = (data: FormData): FormErrors => {
     const nextErrors: FormErrors = {}
 
-    // Object.keys devuelve string[], por eso hacemos el cast a Array<keyof FormData>
+    // recorrer todos los campos y validar
     for (const k of Object.keys(data) as Array<keyof FormData>) {
-      const value = data[k] // TypeScript sabe que value es string
+      const value = data[k]
       const err = validateField(k, value)
       if (err) {
         nextErrors[k] = err
@@ -136,12 +136,12 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
     return nextErrors
   }
 
-  // handler onBlur para validación campo a campo
+  // manejar blur de un campo
   const handleBlur = (key: keyof FormData) => {
     const err = validateField(key, formData[key])
     setErrors(prev => ({ ...prev, [key]: err ?? undefined }))
   }
-
+  // enfocar el primer campo con error
   const focusFirstError = (errs: FormErrors) => {
     if (errs.nombre) {
       firstRef.current?.focus()

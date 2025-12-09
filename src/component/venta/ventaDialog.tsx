@@ -134,7 +134,7 @@ export default function VentaDialog({ open, onOpenChange, ventaId, onSaved }: Ve
   }
 
   const onSelectMedicamento = (idx: number, medIdOrNone: string) => {
-    // medIdOrNone comes as string from Select
+    // seleccionar medicamento en fila
     if (medIdOrNone === NONE_VALUE) {
       updateItem(idx, { medicamento_id: null, medicamentoLabel: "", precio_por_unidad: 0, cantidad: 1 })
       return

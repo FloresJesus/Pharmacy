@@ -162,7 +162,7 @@ export function MedicamentoDialog({ open, onOpenChange, medicamento }: Medicamen
 
   // --- VALIDACIONES ---
   const CODE_REGEX = /^[A-Z]{2}-\d{3}$/
-  const NAME_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,}$/ // letras, espacios, - y '
+  const NAME_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ0-9' -]{2,}$/ // letras, espacios, - y '
   const isValidDate = (d: string) => {
     if (!d) return false
     const t = Date.parse(d)
